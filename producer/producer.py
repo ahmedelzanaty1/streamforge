@@ -2,6 +2,7 @@ import json
 import time
 import uuid
 import os
+import random
 from datetime import datetime
 from kafka import KafkaProducer
 
@@ -16,7 +17,7 @@ producer = KafkaProducer(
 def generate_trip():
     return {
         "trip_id": str(uuid.uuid4()),
-        "distance_km": round(1 + 100 * time.time() % 1, 2),
+        "distance_km": round(random.uniform(5, 50), 2),
         "timestamp": datetime.utcnow().isoformat()
     }
 

@@ -1,0 +1,72 @@
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: streamforge
+      POSTGRES_USER: streamforge
+      POSTGRES_PASSWORD: streamforge
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+
+  producer:
+    build: ../producer
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: on-failure
+    environment:
+      PYTHONUNBUFFERED: "1"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: gps_trips
+
+  consumer:
+    build: ../consumer
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_started
+    restart: on-failure
+    environment:
+      PYTHONUNBUFFERED: "1"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: gps_trips
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: streamforge
+      DB_USER: streamforge
+      DB_PASSWORD: streamforge
+
+volumes:
+  postgres_data:
